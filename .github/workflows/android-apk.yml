@@ -12,6 +12,12 @@ jobs:
       uses: actions/checkout@v4
       with:
         submodules: recursive
+    # Android build requires the write-android branch of SDL (submodule is pinned to write-win)
+    - name: Switch SDL to write-android
+      working-directory: SDL
+      run: |
+        git fetch --depth 1 origin write-android
+        git checkout -B write-android FETCH_HEAD
     - name: Setup JDK
       uses: actions/setup-java@v4
       with:
