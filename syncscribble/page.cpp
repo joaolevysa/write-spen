@@ -6,6 +6,9 @@
 
 
 Dim Page::BLANK_Y_RULING = 40;
+bool Page::enableRuleCache = true;
+std::list<Page*> Page::ruleCachePages;
+static constexpr size_t MAX_RULE_CACHE_PAGES = 4;
 bool Page::enableDropShadow = true;
 
 // for legacy support (esp. ScribbleTest); note that we force paper to be opaque
@@ -122,6 +125,7 @@ Dim Page::width() const
 
 void Page::onPageSizeChange()
 {
+  invalidateRuleCache();
   svgDoc->setWidth(props.width);
   svgDoc->setHeight(props.height);
   // write page props here instead of saveSVG() so that copy+paste of pages works properly
@@ -151,6 +155,7 @@ void Page::onPageSizeChange()
 // I think perhaps we shouldn't use <pattern> for built-in rulings, since it is not included in SVG-tiny spec!
 void Page::generateRuleLayer(Color pageColor, Dim w, Dim h)
 {
+  invalidateRuleCache();
   SvgContainerNode* oldrulenode = ruleNode;
   ruleNode = new SvgG;
   setSvgFillColor(ruleNode, Color::NONE);
@@ -234,10 +239,71 @@ void Page::draw(Painter* painter, const Rect& dirty, bool rulelines)
   if(!ruleNode)
     painter->fillRect(svgDoc->bounds(), Color::WHITE);
 
-  SvgPainter(painter).drawNode(svgDoc.get(), dirty);
+  if(drawRuleCache(painter, dirty)) {
+    // ruling drawn from cache, so draw everything else
+    for(SvgNode* child : svgDoc->children()) {
+      if(child != ruleNode)
+        SvgPainter(painter).drawNode(child, dirty);
+    }
+  }
+  else
+    SvgPainter(painter).drawNode(svgDoc.get(), dirty);
 
   if(isSelected && !Element::FORCE_NORMAL_DRAW)  //docElement()->selection())
     painter->fillRect(rect(), Color(props.color.luma() > 127 ? Color::BLUE : Color::YELLOW).setAlphaF(0.4f));
+}
+
+Page::~Page()
+{
+  invalidateRuleCache();
+}
+
+void Page::invalidateRuleCache()
+{
+  if(ruleCache)
+    ruleCachePages.remove(this);
+  ruleCache.reset();
+}
+
+// returns false if ruling should be drawn normally
+bool Page::drawRuleCache(Painter* painter, const Rect& dirty)
+{
+  // only cache custom rulings (std rulings are just a few lines, faster to draw directly) and only for screen
+  //  (GPU) painter; skip for inverted colors (applied by painter, not to images)
+  if(!enableRuleCache || !ruleNode || !isCustomRuling || !painter->usesGPU() || painter->currState().colorXorMask)
+    return false;
+  // page (svgDoc) must have no transform of its own for ruleNode to map to page rect
+  Transform2D tf = painter->getTransform();
+  Dim scale = std::abs(tf.xscale());
+  if(scale <= 0 || tf.m[1] != 0 || tf.m[2] != 0 || !svgDoc->getTransform().isIdentity())
+    return false;
+  int iw = int(std::ceil(props.width*scale)), ih = int(std::ceil(props.height*scale));
+  // too big (e.g. zoomed in a lot) - few ruling elements will be visible anyway, so just draw normally
+  if(iw <= 0 || ih <= 0 || iw > 4096 || ih > 4096 || iw*ih > 12*1024*1024)
+    return false;
+  // re-render if scale changed significantly (draw slightly scaled image otherwise, e.g. during pinch zoom)
+  if(!ruleCache || ruleCacheScale <= 0 || scale/ruleCacheScale > 1.15 || scale/ruleCacheScale < 1/1.15) {
+    invalidateRuleCache();
+    // limit memory use by keeping caches only for most recently drawn pages
+    while(ruleCachePages.size() >= MAX_RULE_CACHE_PAGES)
+      ruleCachePages.back()->invalidateRuleCache();
+    ruleCache.reset(new Image(iw, ih));
+    ruleCacheScale = scale;
+    ruleCachePages.push_front(this);
+    Painter imgpaint(Painter::PAINT_SW | (painter->sRGB() ? Painter::SRGB_AWARE : 0), ruleCache.get());
+    imgpaint.bgColor = Color::INVALID_COLOR;  // leave transparent
+    imgpaint.beginFrame();
+    imgpaint.setAntiAlias(true);
+    imgpaint.scale(Dim(iw)/props.width, Dim(ih)/props.height);
+    SvgPainter(&imgpaint).drawNode(ruleNode, Rect());
+    imgpaint.endFrame();
+  }
+  else if(ruleCachePages.front() != this) {
+    ruleCachePages.remove(this);
+    ruleCachePages.push_front(this);
+  }
+  painter->drawImage(Rect::wh(props.width, props.height), *ruleCache);
+  return true;
 }
 
 bool Page::saveSVG(IOStream& file, Dim x, Dim y)
@@ -381,6 +447,7 @@ void Page::migrateLegacySVG()
 // convert page content to ruling (for use with external SVG files)
 void Page::contentToRuling()
 {
+  invalidateRuleCache();
   if(ruleNode) {
     ruleNode->parent()->asContainerNode()->removeChild(ruleNode);
     delete ruleNode;
@@ -402,6 +469,7 @@ void Page::contentToRuling()
 
 bool Page::loadSVG(SvgDocument* doc)
 {
+  invalidateRuleCache();
   SvgNode* cn = doc->selectFirst(".write-content");  // new version
   if(doc->hasExt()) {
     if(!cn)  // should never happen, but if it does, leave as unloaded page
@@ -537,6 +605,7 @@ void Page::unload()
 {
   ASSERT(dirtyCount == 0 && "Attempting to unload a dirty page!");
   bookmarks.clear();
+  invalidateRuleCache();
   ruleNode = NULL;
   svgDoc.reset(new SvgDocument(0, 0, props.width, props.height));
   initDoc();

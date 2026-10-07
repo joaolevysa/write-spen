@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <list>
 #include <string>
 #include <functional>
 #include "ulib/fileutil.h"
@@ -51,6 +52,7 @@ public:
 
   Page(Dim w=0, Dim h=0, int idx = -1);
   Page(const PageProperties& _props, const SvgContainerNode* ruling = NULL);
+  ~Page();
   void initDoc();
   PageProperties getProperties();
   bool setProperties(const PageProperties* props);
@@ -70,6 +72,7 @@ public:
   Rect rect() const { return Rect::ltwh(0, 0, width(), height()); }
   Color color() const { return props.color; }
   void draw(Painter* painter, const Rect& dirty, bool rulelines = true);
+  void invalidateRuleCache();
 
   Rect getDirty() const { return SvgPainter::calcDirtyRect(svgDoc.get()); }
   void clearDirty() { SvgPainter::clearDirty(svgDoc.get()); }
@@ -99,4 +102,13 @@ public:
   static const color_t DEFAULT_RULE_COLOR = Color::BLUE;
   //static const int NOT_AUTO_SAVED = INT_MAX;
   static bool enableDropShadow;
+  // cache page background (ruling) as an image when drawing to screen, since redrawing complex rulings
+  //  (e.g. dot grids w/ thousands of elements) every frame makes scrolling slow
+  static bool enableRuleCache;
+
+private:
+  bool drawRuleCache(Painter* painter, const Rect& dirty);
+  std::unique_ptr<Image> ruleCache;
+  Dim ruleCacheScale = 0;
+  static std::list<Page*> ruleCachePages;  // most recently used first
 };

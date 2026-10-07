@@ -215,12 +215,24 @@ void MainWindow::refreshPens(ScribbleDoc* doc)
     tooltip->setText(s.c_str());
   }
 
+  // floating palette: dot color and opacity from pen color, size from pen width
   for(size_t ii = 0; ii < floatPenBtns.size(); ii++) {
     const ScribblePen* pen = doc ? doc->cfg->getPen(ii) : ScribbleApp::cfg->getPen(ii);
     SvgNode* dot = floatPenBtns[ii]->containerNode()->selectFirst(".pen-dot");
-    if(pen && dot)
-      dot->setAttribute("fill", colorToHex(pen->color).c_str());
+    if(!pen || !dot) continue;
+    Dim r = std::min(Dim(11), Dim(5 + pen->width));
+    if(dot->type() == SvgNode::PATH || dot->type() == SvgNode::CIRCLE) {  // <circle> is parsed to SvgPath
+      *static_cast<SvgPath*>(dot)->path() = Path2D().addEllipse(r, r, r, r);
+      dot->invalidate(true);
+    }
+    // show pen alpha (e.g. highlighter) by blending w/ palette background (keeping dot visible)
+    Color c(pen->color);
+    Color bg = ScribbleApp::cfg->Int("uiTheme") == 2 ? Color(0xF0, 0xF0, 0xF0) : Color(0x10, 0x10, 0x10);
+    real a = std::max(real(0.35), c.alphaF());
+    Color blend(int(c.red()*a + bg.red()*(1-a)), int(c.green()*a + bg.green()*(1-a)), int(c.blue()*a + bg.blue()*(1-a)));
+    setSvgFillColor(dot, blend);
   }
+  updateFloatPalette();
 }
 
 // ideally, we'd avoid a full UI update on stroke finished, but lots of things can change, so let's just make
@@ -408,6 +420,13 @@ static const char* floatPenBtnSVG = R"#(
   </g>
 )#";
 
+// ScribblePen::operator== uses memcmp, which also compares padding bytes
+static bool samePen(const ScribblePen& a, const ScribblePen& b)
+{
+  return a.color == b.color && a.width == b.width && a.wRatio == b.wRatio && a.prParam == b.prParam
+      && a.spdMax == b.spdMax && a.dirAngle == b.dirAngle && a.dash == b.dash && a.gap == b.gap && a.flags == b.flags;
+}
+
 void MainWindow::setupFloatPalette()
 {
   floatPalette = new FloatingPalette;
@@ -466,8 +485,11 @@ void MainWindow::updateFloatPalette()
   if(!floatPalette) return;
   int mode = app->scribbleMode->getMode();
   int modetype = ScribbleMode::getModeType(mode);
-  for(size_t ii = 0; ii < floatPenBtns.size(); ii++)
-    floatPenBtns[ii]->setChecked(mode == MODE_STROKE && app->currentPenIndex() == int(ii));
+  // pen is checked only if current pen matches saved pen (not just index, since pen may have been modified)
+  for(size_t ii = 0; ii < floatPenBtns.size(); ii++) {
+    const ScribblePen* pen = penDoc ? penDoc->cfg->getPen(ii) : ScribbleApp::cfg->getPen(ii);
+    floatPenBtns[ii]->setChecked(mode == MODE_STROKE && pen && samePen(*pen, *app->getPen()));
+  }
   floatEraseBtn->setChecked(modetype == MODE_ERASE);
   floatSelectBtn->setChecked(modetype == MODE_SELECT);
   floatEraseBtn->setIcon(actionErase->icon());
