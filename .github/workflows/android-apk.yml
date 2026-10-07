@@ -1,0 +1,27 @@
+name: Android APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Setup JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+    - name: Gradle Assemble (arm64)
+      run: ./gww assembleArm64rel
+      working-directory: syncscribble/android
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: write-spen-apk
+        path: syncscribble/android/app/build/outputs/apk/arm64rel/*.apk

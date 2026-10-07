@@ -103,6 +103,10 @@ void ScribbleConfig::init()
   cfg["savePenMode"] = 0;
   // show pen toolbar (several users have requested this be persisted)
   cfg["showPenToolbar"] = 0;
+  // floating tool palette: visibility, number of saved pens shown, collapsed state
+  cfg["showFloatPalette"] = 1;
+  cfg["floatPalettePens"] = 4;
+  cfg["floatPaletteCollapsed"] = 0;
   // 0 = hide cursor in draw mode, 1 = system cursors, 2 = custom drawn cursor in draw and erase modes
   cfg["drawCursor"] = PLATFORM_MOBILE ? 2 : 1;
 
@@ -197,6 +201,9 @@ void ScribbleConfig::init()
 
   // ruling to be used by ruled selector on blank pages
   cfgF["blankYRuling"] = 60;
+  // floating tool palette position (< 0 for default position)
+  cfgF["floatPaletteX"] = -1;
+  cfgF["floatPaletteY"] = -1;
   // for continuous view
   cfgF["pageSpacing"] = 20;
   // allow slight overzoom for visual indication of zoom limits

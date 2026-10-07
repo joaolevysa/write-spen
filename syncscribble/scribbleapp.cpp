@@ -457,6 +457,7 @@ void ScribbleApp::loadConfig()
 #if PLATFORM_ANDROID
   AndroidHelper::acceptVolKeys = cfg->Int("volButtonMode") != 0;
 #endif
+  win->loadFloatPaletteConfig();
   // do this here avoids need for restart to change theme
   if(cfg->Int("uiTheme") == 2) {
     win->node->addClass("light");

@@ -85,6 +85,7 @@ public:
   void hideClippings();
   void insertDocument();
   void penSelected(int penindex);
+  int currentPenIndex() const { return currPenIndex; }
   void closeDocs(const FSPath& path);
   void maybeQuit();
   // android callbacks

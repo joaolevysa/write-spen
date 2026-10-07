@@ -18,10 +18,19 @@ android {
             }
         }
     }
+    // fixed key committed to repo so that APKs built by CI can be installed as updates of each other
+    signingConfigs {
+        spen {
+            storeFile file('../spen-debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
     buildTypes {
         release {
             // remove this to produced unsigned APK for upload to Google Play (after manually signing)
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.spen
             // enable this for Google Play APK
             minifyEnabled false
             // to add release specific compiler flags, add cFlags or cppFlags here
@@ -32,7 +41,7 @@ android {
         }
         arm64rel {
             //initWith(buildTypes.release)
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.spen
             minifyEnabled false
             ndk {
                 abiFilters 'arm64-v8a'

@@ -193,6 +193,97 @@ void ButtonDragDial::draw(SvgPainter* svgp) const
   //p->fillRect(Rect::centerwh(Point(0.5*a*cos(angle-sweep), 0.5*a*sin(angle-sweep)), 5, 5), Color::RED);
 }
 
+static const char* floatPaletteSVG = R"#(
+  <g class="float-palette toolbar" position="absolute" layout="box">
+    <rect class="background" box-anchor="fill" width="20" height="20" rx="8" ry="8"
+        fill-opacity="0.9" stroke="#808080" stroke-width="1"/>
+    <g class="float-palette-content" box-anchor="fill" layout="flex" flex-direction="column" margin="2 2 6 2">
+      <g class="toolbutton float-palette-grip" box-anchor="hfill" layout="box">
+        <rect fill="none" width="36" height="1"/>  <!-- min width when collapsed -->
+        <rect class="background" box-anchor="hfill" width="36" height="28"/>
+        <rect fill="#909090" width="22" height="4" rx="2" ry="2"/>
+      </g>
+    </g>
+  </g>
+)#";
+
+FloatingPalette::FloatingPalette() : AbsPosWidget(loadSVGFragment(floatPaletteSVG))
+{
+  Widget* content = selectFirst(".float-palette-content");
+  grip = selectFirst(".float-palette-grip");
+  toolbar = createVertToolbar();
+  // palette has its own background
+  toolbar->containerNode()->selectFirst(".toolbar-bg")->setAttribute("fill", "none");
+  content->addWidget(toolbar);
+
+  grip->addHandler([this](SvgGui* gui, SDL_Event* event){
+    if(event->type == SDL_FINGERDOWN && event->tfinger.fingerId == SDL_BUTTON_LMASK) {
+      Rect b = node->bounds();
+      Rect pb = node->parent()->bounds();
+      dragStart = Point(event->tfinger.x, event->tfinger.y);
+      posStart = Point(b.left - pb.left, b.top - pb.top);
+      tracking = true;
+      dragged = false;
+      grip->node->addClass("pressed");
+      gui->setPressed(grip);
+      return true;
+    }
+    if(event->type == SDL_FINGERMOTION && tracking) {
+      Point delta = Point(event->tfinger.x, event->tfinger.y) - dragStart;
+      // small threshold so that a tap with a little jitter still toggles collapse
+      if(!dragged && delta.dist() < 8)
+        return true;
+      dragged = true;
+      setPos(posStart + delta);
+      return true;
+    }
+    if((event->type == SDL_FINGERUP || event->type == SvgGui::OUTSIDE_PRESSED) && tracking) {
+      tracking = false;
+      grip->node->removeClass("pressed");
+      if(dragged) {
+        // save actual (i.e. clamped) position
+        Rect b = node->bounds();
+        Rect pb = node->parent()->bounds();
+        mPos = Point(b.left - pb.left, b.top - pb.top);
+        if(onMoved) onMoved();
+      }
+      else if(event->type == SDL_FINGERUP) {
+        setCollapsed(!mCollapsed);
+        if(onCollapsed) onCollapsed();
+      }
+      return true;
+    }
+    return false;
+  });
+}
+
+void FloatingPalette::setPos(Point p)
+{
+  mPos = p;
+  // offset is calculated by calcOffset(); setting attributes just triggers layout
+  node->setAttribute("left", fstring("%g", p.x).c_str());
+  node->setAttribute("top", fstring("%g", p.y).c_str());
+}
+
+void FloatingPalette::setCollapsed(bool collapsed)
+{
+  mCollapsed = collapsed;
+  toolbar->setVisible(!collapsed);
+}
+
+Point FloatingPalette::calcOffset(const Rect& pb) const
+{
+  static const Dim margin = 8;
+  Rect b = node->bounds();
+  Point p = mPos;
+  if(std::isnan(p.x) || std::isnan(p.y))
+    p = Point(pb.width() - b.width() - margin, 64);
+  // keep palette inside parent, e.g., after rotating screen
+  p.x = std::max(Dim(0), std::min(p.x, pb.width() - b.width()));
+  p.y = std::max(Dim(0), std::min(p.y, pb.height() - b.height()));
+  return Point(pb.left + p.x - b.left, pb.top + p.y - b.top);
+}
+
 // most modern applications (at least on mobile) won't have any menubars, so complicating Button class to
 //  support menubar doesn't seem right
 Menubar::Menubar(SvgNode* n) : Toolbar(n)

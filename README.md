@@ -1,5 +1,10 @@
 # Write #
 
+> **Fork write-spen:** adds a draggable floating tool palette (saved pens, eraser, selection, undo/redo, pen setup).
+> Drag the handle to move it, tap the handle to collapse it. Toggle in View > Floating Tools or in Preferences.
+> APKs (arm64, e.g. Galaxy Tab S6 Lite) are built by the "Android APK" GitHub Actions workflow and signed
+> with the key in `syncscribble/android/spen-debug.keystore` so that new builds install as updates.
+
 Cross-platform (Windows, Mac, Linux, iOS, Android) application for handwritten notes.
 
 [styluslabs.com](http://styluslabs.com) | [Help](http://styluslabs.com/write/Help.html) | [FAQ](http://styluslabs.com/faq)

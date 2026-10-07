@@ -55,6 +55,32 @@ private:
   bool altMode;
 };
 
+// draggable tool palette floating over the document (a la Concepts); drag the grip to move, tap it to collapse
+class FloatingPalette : public AbsPosWidget
+{
+public:
+  FloatingPalette();
+  Point calcOffset(const Rect& parentbbox) const override;
+  // position of top left corner relative to parent; NaN for default position (top right corner)
+  void setPos(Point p);
+  Point pos() const { return mPos; }
+  void setCollapsed(bool collapsed);
+  bool isCollapsed() const { return mCollapsed; }
+
+  Toolbar* toolbar;
+  Widget* grip;
+  std::function<void()> onMoved;
+  std::function<void()> onCollapsed;
+
+private:
+  Point mPos = Point(NAN, NAN);
+  Point dragStart;
+  Point posStart;
+  bool tracking = false;
+  bool dragged = false;
+  bool mCollapsed = false;
+};
+
 class Menubar : public Toolbar
 {
 public:

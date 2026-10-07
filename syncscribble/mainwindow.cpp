@@ -213,6 +213,13 @@ void MainWindow::refreshPens(ScribbleDoc* doc)
 
     tooltip->setText(s.c_str());
   }
+
+  for(size_t ii = 0; ii < floatPenBtns.size(); ii++) {
+    const ScribblePen* pen = doc ? doc->cfg->getPen(ii) : ScribbleApp::cfg->getPen(ii);
+    SvgNode* dot = floatPenBtns[ii]->containerNode()->selectFirst(".pen-dot");
+    if(pen && dot)
+      dot->setAttribute("fill", colorToHex(pen->color).c_str());
+  }
 }
 
 // ideally, we'd avoid a full UI update on stroke finished, but lots of things can change, so let's just make
@@ -331,6 +338,7 @@ void MainWindow::updateMode()
   }
   // update pen toolbar
   app->updatePenToolbar();  //penToolbar->setPen(app->getPen());
+  updateFloatPalette();
 }
 
 void MainWindow::toggleBookmarks()
@@ -381,6 +389,87 @@ void MainWindow::toggleInvertColors()
   actionInvertColors->setChecked(invert);
   ScribbleApp::cfg->set("invertColors", invert);
   redraw();
+}
+
+void MainWindow::toggleFloatPalette()
+{
+  bool show = !actionFloat_Palette->checked();
+  ScribbleApp::cfg->set("showFloatPalette", show);
+  loadFloatPaletteConfig();
+}
+
+// floating tool palette: saved pens, eraser, selection, undo/redo
+static const char* floatPenBtnSVG = R"#(
+  <g class="toolbutton" layout="box">
+    <rect class="background" box-anchor="hfill" width="42" height="38"/>
+    <circle class="checkmark" cx="15" cy="15" r="15" fill="none"/>
+    <circle class="pen-dot" cx="11" cy="11" r="11" fill="#000000" stroke="#808080" stroke-width="1.5"/>
+  </g>
+)#";
+
+void MainWindow::setupFloatPalette()
+{
+  floatPalette = new FloatingPalette;
+  Toolbar* tb = floatPalette->toolbar;
+  for(size_t ii = 0; ii < ScribbleApp::cfg->pens.size(); ii++) {
+    Button* btn = new Button(loadSVGFragment(floatPenBtnSVG));
+    btn->onClicked = [this, ii](){ app->penSelected(int(ii)); };
+    tb->addWidget(btn);
+    floatPenBtns.push_back(btn);
+  }
+  tb->addSeparator();
+  floatEraseBtn = createToolbutton(actionErase->icon(), actionErase->title.c_str());
+  floatEraseBtn->onClicked = [this](){ actionErase->onTriggered(); };
+  tb->addWidget(floatEraseBtn);
+  floatSelectBtn = createToolbutton(actionSelect->icon(), actionSelect->title.c_str());
+  floatSelectBtn->onClicked = [this](){ actionSelect->onTriggered(); };
+  tb->addWidget(floatSelectBtn);
+  tb->addSeparator();
+  tb->addAction(actionUndo);
+  tb->addAction(actionRedo);
+  tb->addAction(actionCustom_Pen);
+
+  floatPalette->onMoved = [this](){
+    ScribbleApp::cfg->set("floatPaletteX", floatPalette->pos().x);
+    ScribbleApp::cfg->set("floatPaletteY", floatPalette->pos().y);
+  };
+  floatPalette->onCollapsed = [this](){
+    ScribbleApp::cfg->set("floatPaletteCollapsed", floatPalette->isCollapsed());
+  };
+
+  float x = ScribbleApp::cfg->Float("floatPaletteX");
+  float y = ScribbleApp::cfg->Float("floatPaletteY");
+  if(x >= 0 && y >= 0)
+    floatPalette->setPos(Point(x, y));
+  floatPalette->setCollapsed(ScribbleApp::cfg->Bool("floatPaletteCollapsed"));
+  selectFirst("#main-container")->addWidget(floatPalette);
+  loadFloatPaletteConfig();
+  refreshPens(penDoc);
+}
+
+void MainWindow::loadFloatPaletteConfig()
+{
+  if(!floatPalette) return;
+  bool show = ScribbleApp::cfg->Bool("showFloatPalette");
+  actionFloat_Palette->setChecked(show);
+  floatPalette->setVisible(show);
+  int npens = ScribbleApp::cfg->Int("floatPalettePens");
+  for(size_t ii = 0; ii < floatPenBtns.size(); ii++)
+    floatPenBtns[ii]->setVisible(int(ii) < npens);
+  updateFloatPalette();
+}
+
+void MainWindow::updateFloatPalette()
+{
+  if(!floatPalette) return;
+  int mode = app->scribbleMode->getMode();
+  int modetype = ScribbleMode::getModeType(mode);
+  for(size_t ii = 0; ii < floatPenBtns.size(); ii++)
+    floatPenBtns[ii]->setChecked(mode == MODE_STROKE && app->currentPenIndex() == int(ii));
+  floatEraseBtn->setChecked(modetype == MODE_ERASE);
+  floatSelectBtn->setChecked(modetype == MODE_SELECT);
+  floatEraseBtn->setIcon(actionErase->icon());
+  floatSelectBtn->setIcon(actionSelect->icon());
 }
 
 void MainWindow::togglePenToolbar()
@@ -719,6 +808,7 @@ void MainWindow::setupUI(ScribbleApp* a)
   });
 
   selectFirst("#main-container")->addWidget(selPopup);
+  setupFloatPalette();
   // set up one-time help popups
   setupHelpTips();
 
@@ -958,6 +1048,10 @@ void MainWindow::setupActions()
       "Invert Colors", "", "", [this](){ toggleInvertColors(); });
   actionInvertColors->setCheckable(true);
   actionInvertColors->setChecked(ScribbleApp::cfg->Bool("invertColors"));
+  actionFloat_Palette = createAction("actionFloat_Palette",
+      "Floating Tools", ":/icons/ic_menu_draw.svg", "", [this](){ toggleFloatPalette(); });
+  actionFloat_Palette->setCheckable(true);
+  actionFloat_Palette->tooltip = _("Show draggable tool palette\nDrag handle to move, tap to collapse");
 
   actionNew_Page_Before = createAction("actionNew_Page_Before",
       "New Page &Before", "", "Ctrl+Shift+Left", SLOT(doCommand(ID_PAGEBEFORE)));
@@ -1267,6 +1361,7 @@ void MainWindow::setupActions()
   // Qt uses immersive mode (sticky) for fullscreen on Android 4.4+; hides status bar on earlier versions
   viewmenu->addAction(actionFullscreen);
   viewmenu->addAction(actionInvertColors);
+  viewmenu->addAction(actionFloat_Palette);
 
   Action* selactions[] = {actionCut, actionCopy, actionPaste, actionDupSel, actionDelete_Selection,
       actionUngroup, actionInvert_Selection, actionSelect_All, actionCreate_Link};  //actionSelect_Similar

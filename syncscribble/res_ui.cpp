@@ -124,6 +124,10 @@ const char* prefInfoXML = R"#(
       title="Return to previous tool" description="Double tap to lock current tool" />
   <pref name="popupToolbar" type="bool" group="User Interface"
       title="Popup selection tools" description="Show floating toolbar when selection is made" />
+  <pref name="showFloatPalette" type="bool" group="User Interface"
+      title="Floating tool palette" description="Drag handle to move, tap handle to collapse" />
+  <pref name="floatPalettePens" type="int" group="User Interface" min="0" max="8"
+      title="Pens in floating palette" description="Number of saved pens to show" />
   <!-- pref name="scrollerLocation" type="int" group="User Interface"
       enum="Right;Left" title="Scrollbar position" description="" / -->
   <pref name="autoHideScroller" type="bool" group="User Interface"

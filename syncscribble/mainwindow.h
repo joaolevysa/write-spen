@@ -11,6 +11,7 @@ class ScribbleArea;
 class ScribbleDoc;
 class OverlayWidget;
 class AutoAdjContainer;
+class FloatingPalette;
 
 class MainWindow : public Window
 {
@@ -38,6 +39,10 @@ public:
   void toggleSyncViewMaster();
   void toggleSplitView(int newstate);
   void toggleInvertColors();
+  void toggleFloatPalette();
+  void setupFloatPalette();
+  void updateFloatPalette();
+  void loadFloatPaletteConfig();
 
   Action* findAction(const char* name);
 
@@ -126,6 +131,7 @@ public:
   Action* actionDisable_Touch;
   Action* actionSyncInfo;
   Action* actionInvertColors;
+  Action* actionFloat_Palette;
 
   Menu* menuRecent_Files;
   Menu* menuErase;
@@ -141,6 +147,10 @@ public:
   Widget* toolBarStretch;
   Widget* selPopup;
   AutoAdjContainer* penToolbarAutoAdj;
+  FloatingPalette* floatPalette = NULL;
+  std::vector<Button*> floatPenBtns;
+  Button* floatEraseBtn = NULL;
+  Button* floatSelectBtn = NULL;
   std::vector<Widget*> tbWidgets;
   std::string titleStr;
   std::vector<Widget*> penPreviews;
