@@ -107,6 +107,8 @@ void ScribbleConfig::init()
   cfg["showFloatPalette"] = 1;
   cfg["floatPalettePens"] = 4;
   cfg["floatPaletteCollapsed"] = 0;
+  // hide main toolbar (doc button and floating palette remain)
+  cfg["hideMainToolbar"] = 0;
   // 0 = hide cursor in draw mode, 1 = system cursors, 2 = custom drawn cursor in draw and erase modes
   cfg["drawCursor"] = PLATFORM_MOBILE ? 2 : 1;
 

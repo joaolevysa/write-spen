@@ -2,6 +2,8 @@
 
 > **Fork write-spen:** adds a draggable floating tool palette (saved pens, eraser, selection, undo/redo, pen setup).
 > Drag the handle to move it, tap the handle to collapse it. Toggle in View > Floating Tools or in Preferences.
+> The top toolbar can be hidden (palette ⋮ button, View > Hide Toolbar or Preferences); the documents button
+> floats translucently over the top left corner and responds to touch only - pen input passes through to the page.
 > APKs (arm64, e.g. Galaxy Tab S6 Lite) are built by the "Android APK" GitHub Actions workflow and signed
 > with the key in `syncscribble/android/spen-debug.keystore` so that new builds install as updates.
 

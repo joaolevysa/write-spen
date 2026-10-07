@@ -458,6 +458,7 @@ void ScribbleApp::loadConfig()
   AndroidHelper::acceptVolKeys = cfg->Int("volButtonMode") != 0;
 #endif
   win->loadFloatPaletteConfig();
+  win->loadMainToolbarConfig();
   // do this here avoids need for restart to change theme
   if(cfg->Int("uiTheme") == 2) {
     win->node->addClass("light");
@@ -1585,7 +1586,7 @@ void ScribbleApp::setWinTitle(const std::string& filename)
   win->setTitle((docDisplayName(filename) + winTitle).c_str());
   win->titleStr = docShortName(filename);  // storage for full title string, since button text may be elided
   win->titleButton->setText(win->titleStr.c_str());
-  win->titleButton->setShowTitle(true);  // text may have been hidden by layout
+  win->titleButton->setShowTitle(false);  // floating doc button shows icon only
 }
 
 // to be called after document successfully loaded

@@ -9,6 +9,7 @@
 #include "scribbledoc.h"
 #include "pentoolbar.h"
 #include "touchwidgets.h"
+#include "ugui/svggui_platform.h"
 
 // SVG for main window, default clippings; preferences info
 #include "res_ui.cpp"
@@ -428,6 +429,7 @@ void MainWindow::setupFloatPalette()
   tb->addAction(actionUndo);
   tb->addAction(actionRedo);
   tb->addAction(actionCustom_Pen);
+  tb->addAction(actionHide_Toolbar);
 
   floatPalette->onMoved = [this](){
     ScribbleApp::cfg->set("floatPaletteX", floatPalette->pos().x);
@@ -470,6 +472,60 @@ void MainWindow::updateFloatPalette()
   floatSelectBtn->setChecked(modetype == MODE_SELECT);
   floatEraseBtn->setIcon(actionErase->icon());
   floatSelectBtn->setIcon(actionSelect->icon());
+}
+
+void MainWindow::toggleMainToolbar()
+{
+  ScribbleApp::cfg->set("hideMainToolbar", !ScribbleApp::cfg->Bool("hideMainToolbar"));
+  loadMainToolbarConfig();
+}
+
+void MainWindow::loadMainToolbarConfig()
+{
+  bool hide = ScribbleApp::cfg->Bool("hideMainToolbar");
+  selectFirst("#main-toolbar-container")->setVisible(!hide);
+  actionHide_Toolbar->setChecked(hide);
+}
+
+static const char* docButtonSVG = R"#(
+  <g class="float-doc-btn toolbar" position="absolute" layout="box" left="6" top="6" opacity="0.35">
+    <rect class="background" box-anchor="fill" width="20" height="20" rx="8" ry="8"/>
+  </g>
+)#";
+
+// documents button (formerly doc title on toolbar) floating translucently over top left corner of document;
+//  only responds to touch - pen input passes through to the document underneath
+void MainWindow::setupDocButton()
+{
+  AbsPosWidget* docBtn = new AbsPosWidget(loadSVGFragment(docButtonSVG));
+  titleButton->setShowTitle(false);
+  docBtn->addWidget(titleButton);
+  titleButton->addHandler([this](SvgGui* gui, SDL_Event* event){
+    static bool penActive = false;
+    auto isPen = [](const SDL_Event* e){
+      return e->tfinger.touchId == PenPointerPen || e->tfinger.touchId == PenPointerEraser;
+    };
+    if(event->type == SDL_FINGERDOWN || event->type == SDL_FINGERMOTION || event->type == SDL_FINGERUP) {
+      if(!isPen(event))
+        return false;
+      if(event->type == SDL_FINGERDOWN)
+        penActive = true;
+      else if(event->type == SDL_FINGERUP)
+        penActive = false;
+      mainAreaWidget->sdlEvent(gui, event);
+      return true;
+    }
+    // no hover highlight for pen
+    if(event->type == SvgGui::ENTER && event->user.data1 && isPen(static_cast<SDL_Event*>(event->user.data1)))
+      return true;
+    // long press timer also runs for pen
+    if(penActive && isLongPressOrRightClick(event))
+      return true;
+    return false;
+  });
+  selectFirst("#scribble-container")->addWidget(docBtn);
+  docBtn->setVisible(true);  // registers abs pos widget with window
+  loadMainToolbarConfig();
 }
 
 void MainWindow::togglePenToolbar()
@@ -732,6 +788,7 @@ void MainWindow::setupUI(ScribbleApp* a)
 
   Widget* scribbleContainer = selectFirst("#scribble-container");
   ScribbleWidget* areaWidget = createScribbleAreaWidget(scribbleContainer, app->activeArea());
+  mainAreaWidget = areaWidget;
   areaWidget->focusIndicator = selectFirst("#scribble-focus");
 
   // container and splitter for split - initially hidden
@@ -809,6 +866,7 @@ void MainWindow::setupUI(ScribbleApp* a)
 
   selectFirst("#main-container")->addWidget(selPopup);
   setupFloatPalette();
+  setupDocButton();
   // set up one-time help popups
   setupHelpTips();
 
@@ -862,8 +920,7 @@ void MainWindow::createToolBars()
       tb->addWidget(stretch);  // not included in tbWidgets
     }
     else if(tbcfg[jj] == "docTitle") {
-      tb->addWidget(titleButton);
-      addTBWidget(titleButton, 2);
+      // doc title button is shown as floating button over document instead (see setupDocButton())
     }
     else if(tbcfg[jj] == "undoRedoBtn") {
       tb->addWidget(undoRedoBtn);
@@ -935,8 +992,7 @@ void MainWindow::createToolBars()
       return;
     // reset
     nextAdjIdx = 0;
-    titleButton->setShowTitle(!vertToolbar);
-    titleButton->setText(titleStr.c_str());
+    titleButton->setShowTitle(false);  // floating doc button shows icon only
     for(Widget* w : tbWidgets)
       w->setVisible(true);
     if(toolsToolbar) {
@@ -947,21 +1003,8 @@ void MainWindow::createToolBars()
     }
     adjtb->repeatLayout(dest);
     while(stretch->node->bounds().width() < 1) {
-      if(titleButton->selectFirst(".title")->isVisible()) {
-        titleButton->setShowTitle(false);
-        adjtb->repeatLayout(dest);
-        Dim w = stretch->node->bounds().width();
-        if(w > 1) {
-          SvgText* textnode = static_cast<SvgText*>(titleButton->containerNode()->selectFirst("text"));
-          if(w > 12 && textnode) {
-            titleButton->setShowTitle(true);
-            SvgPainter::elideText(textnode, w - 4);
-            adjtb->repeatLayout(dest);
-          }
-          return;
-        }
-      }
-      else if(nextAdjIdx < tbWidgets.size()) {
+      // doc title is no longer on toolbar (floating doc button), so nothing to elide
+      if(nextAdjIdx < tbWidgets.size()) {
         if(tbWidgets[nextAdjIdx] == toolsToolbar) {
           toolsBtn->setVisible(true);
           eraseBtn->setVisible(false);
@@ -1051,6 +1094,10 @@ void MainWindow::setupActions()
   actionFloat_Palette = createAction("actionFloat_Palette",
       "Floating Tools", ":/icons/ic_menu_draw.svg", "", [this](){ toggleFloatPalette(); });
   actionFloat_Palette->setCheckable(true);
+  actionHide_Toolbar = createAction("actionHide_Toolbar",
+      "Hide Toolbar", ":/icons/ic_menu_overflow.svg", "", [this](){ toggleMainToolbar(); });
+  actionHide_Toolbar->setCheckable(true);
+  actionHide_Toolbar->tooltip = _("Show/hide top toolbar");
   actionFloat_Palette->tooltip = _("Show draggable tool palette\nDrag handle to move, tap to collapse");
 
   actionNew_Page_Before = createAction("actionNew_Page_Before",
@@ -1362,6 +1409,7 @@ void MainWindow::setupActions()
   viewmenu->addAction(actionFullscreen);
   viewmenu->addAction(actionInvertColors);
   viewmenu->addAction(actionFloat_Palette);
+  viewmenu->addAction(actionHide_Toolbar);
 
   Action* selactions[] = {actionCut, actionCopy, actionPaste, actionDupSel, actionDelete_Selection,
       actionUngroup, actionInvert_Selection, actionSelect_All, actionCreate_Link};  //actionSelect_Similar

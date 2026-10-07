@@ -43,6 +43,9 @@ public:
   void setupFloatPalette();
   void updateFloatPalette();
   void loadFloatPaletteConfig();
+  void toggleMainToolbar();
+  void loadMainToolbarConfig();
+  void setupDocButton();
 
   Action* findAction(const char* name);
 
@@ -132,6 +135,7 @@ public:
   Action* actionSyncInfo;
   Action* actionInvertColors;
   Action* actionFloat_Palette;
+  Action* actionHide_Toolbar;
 
   Menu* menuRecent_Files;
   Menu* menuErase;
@@ -148,6 +152,7 @@ public:
   Widget* selPopup;
   AutoAdjContainer* penToolbarAutoAdj;
   FloatingPalette* floatPalette = NULL;
+  ScribbleWidget* mainAreaWidget = NULL;
   std::vector<Button*> floatPenBtns;
   Button* floatEraseBtn = NULL;
   Button* floatSelectBtn = NULL;

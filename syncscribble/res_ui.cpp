@@ -128,6 +128,8 @@ const char* prefInfoXML = R"#(
       title="Floating tool palette" description="Drag handle to move, tap handle to collapse" />
   <pref name="floatPalettePens" type="int" group="User Interface" min="0" max="8"
       title="Pens in floating palette" description="Number of saved pens to show" />
+  <pref name="hideMainToolbar" type="bool" group="User Interface"
+      title="Hide top toolbar" description="Use floating palette and documents button instead" />
   <!-- pref name="scrollerLocation" type="int" group="User Interface"
       enum="Right;Left" title="Scrollbar position" description="" / -->
   <pref name="autoHideScroller" type="bool" group="User Interface"
